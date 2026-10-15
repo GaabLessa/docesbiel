@@ -6,6 +6,11 @@ const loginStatus = document.querySelector("#login-status");
 const productStatus = document.querySelector("#product-status");
 const listStatus = document.querySelector("#list-status");
 const productList = document.querySelector("#admin-products");
+const requestsList = document.querySelector("#admin-requests");
+const requestsStatus = document.querySelector("#requests-status");
+const deliveryZoneForm = document.querySelector("#delivery-zone-form");
+const deliveryZoneList = document.querySelector("#delivery-zones");
+const zonesStatus = document.querySelector("#zones-status");
 const productFormTitle = document.querySelector("#product-form-title");
 const cancelEditButton = document.querySelector("#cancel-edit-button");
 const currentImageNote = document.querySelector("#current-image-note");
@@ -64,6 +69,206 @@ async function loadAdminProducts() {
   });
 
   showStatus(listStatus, data.length ? `${data.length} produtos no catálogo.` : "Nenhum produto cadastrado ainda.");
+}
+
+const requestStatusLabels = {
+  pending: "Aguardando resposta",
+  confirmed: "Confirmado",
+  completed: "Concluído",
+  cancelled: "Cancelado",
+};
+
+async function loadAdminRequests() {
+  showStatus(requestsStatus, "Carregando solicitações...");
+  const { data, error } = await supabaseClient
+    .from("order_requests")
+    .select("id, customer_name, customer_phone, customer_email, product_name, quantity, preferred_date, preferred_time, delivery_method, delivery_postal_code, delivery_city, delivery_neighborhood, delivery_address, delivery_number, delivery_complement, delivery_fee_cents, notes, status, created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    showStatus(requestsStatus, "Não consegui carregar as solicitações. Confira se a etapa de agendamentos foi configurada.", true);
+    console.error("Erro ao carregar solicitações:", error.message);
+    return;
+  }
+
+  requestsList.replaceChildren();
+  data.forEach((request) => {
+    const item = document.createElement("li");
+    item.className = "admin-request-card";
+    const heading = document.createElement("div");
+    heading.className = "admin-request-heading";
+    const customer = document.createElement("strong");
+    customer.textContent = request.customer_name;
+    const statusLabel = document.createElement("span");
+    statusLabel.className = "request-status-badge";
+    statusLabel.textContent = requestStatusLabels[request.status] || request.status;
+    heading.append(customer, statusLabel);
+
+    const contact = document.createElement("p");
+    contact.textContent = `Contato: ${request.customer_phone}${request.customer_email ? ` · ${request.customer_email}` : ""}`;
+    const product = document.createElement("p");
+    product.textContent = `Pedido: ${request.quantity} × ${request.product_name}`;
+    const date = document.createElement("p");
+    const requestedDate = new Date(`${request.preferred_date}T12:00:00Z`);
+    const formattedDate = new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeZone: "UTC" }).format(requestedDate);
+    const formattedTime = request.preferred_time ? ` às ${request.preferred_time.slice(0, 5)}` : " (sem horário definido)";
+    date.textContent = `Data desejada: ${formattedDate}${formattedTime}`;
+    item.append(heading, contact, product, date);
+
+    const delivery = document.createElement("p");
+    if (request.delivery_method === "delivery") {
+      const address = [request.delivery_address, request.delivery_number, request.delivery_complement]
+        .filter(Boolean).join(", ");
+      const area = [request.delivery_neighborhood, request.delivery_city, request.delivery_postal_code]
+        .filter(Boolean).join(" · ");
+      const fee = request.delivery_fee_cents === null
+        ? "Frete a confirmar"
+        : `Frete estimado: ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(request.delivery_fee_cents / 100)}`;
+      delivery.textContent = `Entrega: ${address} · ${area} · ${fee}`;
+    } else {
+      delivery.textContent = "Retirada no local · sem taxa de entrega";
+    }
+    item.append(delivery);
+
+    if (request.notes) {
+      const notes = document.createElement("p");
+      notes.textContent = `Detalhes: ${request.notes}`;
+      item.append(notes);
+    }
+
+    const controls = document.createElement("div");
+    controls.className = "request-controls";
+    const select = document.createElement("select");
+    select.setAttribute("aria-label", `Status do pedido de ${request.customer_name}`);
+    Object.entries(requestStatusLabels).forEach(([value, label]) => {
+      const option = new Option(label, value);
+      option.selected = value === request.status;
+      select.add(option);
+    });
+    const saveButton = document.createElement("button");
+    saveButton.className = "button button-outline admin-edit-button";
+    saveButton.type = "button";
+    saveButton.textContent = "Atualizar status";
+    saveButton.addEventListener("click", () => updateRequestStatus(request.id, select.value, saveButton));
+    controls.append(select, saveButton);
+    item.append(controls);
+    requestsList.append(item);
+  });
+
+  showStatus(requestsStatus, data.length ? `${data.length} solicitação(ões).` : "Nenhuma solicitação recebida ainda.");
+}
+
+let adminDeliveryZones = [];
+
+function formatPostalCode(value) {
+  const digits = value.replace(/\D/g, "");
+  return digits.length === 8 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : value;
+}
+
+async function loadAdminDeliveryZones() {
+  showStatus(zonesStatus, "Carregando regiões...");
+  const { data, error } = await supabaseClient
+    .from("delivery_zones")
+    .select("id, name, postal_code_start, postal_code_end, fee_cents")
+    .order("postal_code_start");
+
+  if (error) {
+    showStatus(zonesStatus, "Não consegui carregar as regiões. Confira a configuração dos agendamentos.", true);
+    console.error("Erro ao carregar regiões:", error.message);
+    return;
+  }
+
+  adminDeliveryZones = data || [];
+  deliveryZoneList.replaceChildren();
+  adminDeliveryZones.forEach((zone) => {
+    const item = document.createElement("li");
+    const details = document.createElement("span");
+    const fee = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(zone.fee_cents / 100);
+    details.textContent = `${zone.name} · CEP ${formatPostalCode(zone.postal_code_start)} a ${formatPostalCode(zone.postal_code_end)} · ${fee}`;
+    const removeButton = document.createElement("button");
+    removeButton.className = "button button-outline admin-delete-button";
+    removeButton.type = "button";
+    removeButton.textContent = "Excluir região";
+    removeButton.addEventListener("click", async () => {
+      if (!window.confirm(`Excluir a região “${zone.name}”? Pedidos já recebidos não serão alterados.`)) return;
+      removeButton.disabled = true;
+      const { error: deleteError } = await supabaseClient.from("delivery_zones").delete().eq("id", zone.id);
+      if (deleteError) {
+        removeButton.disabled = false;
+        showStatus(zonesStatus, "Não consegui excluir esta região.", true);
+        console.error("Erro ao excluir região:", deleteError.message);
+        return;
+      }
+      await loadAdminDeliveryZones();
+      showStatus(zonesStatus, "Região excluída.");
+    });
+    item.append(details, removeButton);
+    deliveryZoneList.append(item);
+  });
+
+  showStatus(zonesStatus, adminDeliveryZones.length ? `${adminDeliveryZones.length} região(ões) cadastrada(s).` : "Nenhuma região cadastrada ainda.");
+}
+
+async function saveDeliveryZone(event) {
+  event.preventDefault();
+  const formData = new FormData(deliveryZoneForm);
+  const start = formData.get("postal_code_start").replace(/\D/g, "");
+  const end = formData.get("postal_code_end").replace(/\D/g, "");
+  const startNumber = Number(start);
+  const endNumber = Number(end);
+  const fee = Number(formData.get("fee"));
+
+  if (start.length !== 8 || end.length !== 8 || startNumber > endNumber) {
+    showStatus(zonesStatus, "Informe uma faixa válida: CEP inicial e final com 8 números, em ordem.", true);
+    return;
+  }
+  if (!Number.isFinite(fee) || fee < 0) {
+    showStatus(zonesStatus, "Informe um valor de frete válido.", true);
+    return;
+  }
+  const overlaps = adminDeliveryZones.some((zone) =>
+    startNumber <= Number(zone.postal_code_end) && endNumber >= Number(zone.postal_code_start));
+  if (overlaps) {
+    showStatus(zonesStatus, "Essa faixa de CEP se sobrepõe a uma região existente. Ajuste os limites.", true);
+    return;
+  }
+
+  const saveButton = deliveryZoneForm.querySelector('[type="submit"]');
+  saveButton.disabled = true;
+  showStatus(zonesStatus, "Salvando região...");
+  const { error } = await supabaseClient.from("delivery_zones").insert({
+    name: formData.get("name").trim(),
+    postal_code_start: start,
+    postal_code_end: end,
+    fee_cents: Math.round(fee * 100),
+    is_active: true,
+  });
+  saveButton.disabled = false;
+
+  if (error) {
+    showStatus(zonesStatus, "Não consegui salvar a região. Confira os CEPs e tente novamente.", true);
+    console.error("Erro ao salvar região:", error.message);
+    return;
+  }
+
+  deliveryZoneForm.reset();
+  await loadAdminDeliveryZones();
+  showStatus(zonesStatus, "Região e taxa cadastradas.");
+}
+
+async function updateRequestStatus(requestId, status, button) {
+  button.disabled = true;
+  const { error } = await supabaseClient.from("order_requests").update({ status }).eq("id", requestId);
+  button.disabled = false;
+
+  if (error) {
+    showStatus(requestsStatus, "Não consegui atualizar o status. Tente novamente.", true);
+    console.error("Erro ao atualizar status:", error.message);
+    return;
+  }
+
+  await loadAdminRequests();
+  showStatus(requestsStatus, "Status atualizado.");
 }
 
 async function deleteProduct(product, button) {
@@ -149,6 +354,8 @@ async function showAdminIfAuthorized(session) {
   loginView.hidden = true;
   adminView.hidden = false;
   await loadAdminProducts();
+  await loadAdminRequests();
+  await loadAdminDeliveryZones();
 }
 
 if (!supabaseClient) {
@@ -239,6 +446,7 @@ if (!supabaseClient) {
   });
 
   cancelEditButton.addEventListener("click", stopEditingProduct);
+  deliveryZoneForm.addEventListener("submit", saveDeliveryZone);
 
   document.querySelector("#logout-button").addEventListener("click", async () => {
     await supabaseClient.auth.signOut();

@@ -77,6 +77,25 @@
             <ul id="admin-products" class="admin-products"></ul>
           </section>
         </div>
+        <section class="admin-requests" aria-labelledby="admin-requests-title">
+          <h2 id="admin-requests-title">Solicitações de encomenda</h2>
+          <p class="admin-help">A data é uma preferência do cliente. Combine a disponibilidade diretamente com ele antes de confirmar.</p>
+          <p class="form-status" id="requests-status" role="status" aria-live="polite"></p>
+          <ul id="admin-requests" class="admin-requests-list"></ul>
+        </section>
+        <section class="admin-requests delivery-zone-settings" aria-labelledby="delivery-zones-title">
+          <h2 id="delivery-zones-title">Taxas de entrega por CEP</h2>
+          <p class="admin-help">Cadastre faixas de CEP e a taxa combinada com o motoboy. O site calcula uma estimativa para o cliente com base no CEP informado.</p>
+          <form id="delivery-zone-form" class="delivery-zone-form">
+            <div><label for="zone-name">Nome da região</label><input id="zone-name" name="name" maxlength="80" required placeholder="Ex.: Centro" /></div>
+            <div><label for="zone-cep-start">CEP inicial</label><input id="zone-cep-start" name="postal_code_start" inputmode="numeric" maxlength="9" required placeholder="00000-000" /></div>
+            <div><label for="zone-cep-end">CEP final</label><input id="zone-cep-end" name="postal_code_end" inputmode="numeric" maxlength="9" required placeholder="00000-000" /></div>
+            <div><label for="zone-fee">Taxa de entrega (R$)</label><input id="zone-fee" name="fee" type="number" min="0" step="0.01" required placeholder="Ex.: 10,00" /></div>
+            <button class="button button-primary" type="submit">Adicionar região</button>
+          </form>
+          <p class="form-status" id="zones-status" role="status" aria-live="polite"></p>
+          <ul id="delivery-zones" class="delivery-zone-list"></ul>
+        </section>
       </section>
     </main>
   </body>
