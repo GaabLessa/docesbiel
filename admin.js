@@ -6,7 +6,11 @@ const loginStatus = document.querySelector("#login-status");
 const productStatus = document.querySelector("#product-status");
 const listStatus = document.querySelector("#list-status");
 const productList = document.querySelector("#admin-products");
+const productFormTitle = document.querySelector("#product-form-title");
+const cancelEditButton = document.querySelector("#cancel-edit-button");
+const currentImageNote = document.querySelector("#current-image-note");
 const supabaseClient = window.supabaseClient;
+let editingProduct = null;
 
 function showStatus(element, message, isError = false) {
   element.textContent = message;
@@ -17,7 +21,7 @@ async function loadAdminProducts() {
   showStatus(listStatus, "Carregando produtos...");
   const { data, error } = await supabaseClient
     .from("products")
-    .select("id, name, category, price_cents, is_active")
+    .select("id, name, description, category, price_cents, image_url, is_active")
     .order("sort_order")
     .order("created_at", { ascending: false });
 
@@ -37,11 +41,46 @@ async function loadAdminProducts() {
       ? "Preço a definir"
       : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(product.price_cents / 100);
     details.textContent = `${product.category === "bolos" ? "Bolo" : "Doce"} · ${price}${product.is_active ? "" : " · Inativo"}`;
-    item.append(name, details);
+    const textGroup = document.createElement("div");
+    textGroup.className = "admin-product-text";
+    textGroup.append(name, details);
+    const editButton = document.createElement("button");
+    editButton.className = "button button-outline admin-edit-button";
+    editButton.type = "button";
+    editButton.textContent = "Editar";
+    editButton.setAttribute("aria-label", `Editar ${product.name}`);
+    editButton.addEventListener("click", () => startEditingProduct(product));
+    item.append(textGroup, editButton);
     productList.append(item);
   });
 
   showStatus(listStatus, data.length ? `${data.length} produtos no catálogo.` : "Nenhum produto cadastrado ainda.");
+}
+
+function startEditingProduct(product) {
+  editingProduct = product;
+  productForm.elements.name.value = product.name;
+  productForm.elements.description.value = product.description || "";
+  productForm.elements.category.value = product.category;
+  productForm.elements.is_active.value = String(product.is_active);
+  productForm.elements.price.value = product.price_cents === null ? "" : (product.price_cents / 100).toFixed(2);
+  productForm.elements.image_file.value = "";
+  productFormTitle.textContent = "Editar produto";
+  productForm.querySelector('[type="submit"]').innerHTML = 'Salvar alterações <span aria-hidden="true">→</span>';
+  cancelEditButton.hidden = false;
+  currentImageNote.hidden = !product.image_url;
+  showStatus(productStatus, product.image_url ? "Edite os campos; selecione outra imagem apenas se quiser substituí-la." : "Edite os campos do produto.");
+  productForm.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function stopEditingProduct() {
+  editingProduct = null;
+  productForm.reset();
+  productFormTitle.textContent = "Adicionar produto";
+  productForm.querySelector('[type="submit"]').innerHTML = 'Salvar produto <span aria-hidden="true">→</span>';
+  cancelEditButton.hidden = true;
+  currentImageNote.hidden = true;
+  showStatus(productStatus, "");
 }
 
 async function showAdminIfAuthorized(session) {
@@ -90,7 +129,7 @@ if (!supabaseClient) {
     const formData = new FormData(productForm);
     const rawPrice = formData.get("price");
     const imageFile = formData.get("image_file");
-    let imageUrl = null;
+    let imageUrl = editingProduct?.image_url || null;
 
     if (imageFile.size > 0) {
       const allowedTypes = {
@@ -126,25 +165,32 @@ if (!supabaseClient) {
 
     showStatus(productStatus, "Salvando produto...");
 
-    const { error } = await supabaseClient.from("products").insert({
+    const productData = {
       name: formData.get("name").trim(),
       description: formData.get("description").trim(),
       category: formData.get("category"),
       price_cents: rawPrice === "" ? null : Math.round(Number(rawPrice) * 100),
       image_url: imageUrl || null,
-      is_active: true,
-    });
+      is_active: formData.get("is_active") === "true",
+    };
+    const result = editingProduct
+      ? await supabaseClient.from("products").update(productData).eq("id", editingProduct.id)
+      : await supabaseClient.from("products").insert(productData);
+    const { error } = result;
 
     if (error) {
-      showStatus(productStatus, "Não foi possível salvar. Confira os campos e as permissões do administrador.", true);
+      showStatus(productStatus, "Não foi possível salvar. Confira as permissões do administrador.", true);
       console.error("Erro ao salvar produto:", error.message);
       return;
     }
 
-    productForm.reset();
-    showStatus(productStatus, "Produto salvo no catálogo!");
+    const wasEditing = Boolean(editingProduct);
+    stopEditingProduct();
+    showStatus(productStatus, wasEditing ? "Alterações salvas no produto!" : "Produto salvo no catálogo!");
     await loadAdminProducts();
   });
+
+  cancelEditButton.addEventListener("click", stopEditingProduct);
 
   document.querySelector("#logout-button").addEventListener("click", async () => {
     await supabaseClient.auth.signOut();
