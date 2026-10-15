@@ -89,7 +89,41 @@ if (!supabaseClient) {
     event.preventDefault();
     const formData = new FormData(productForm);
     const rawPrice = formData.get("price");
-    const imageUrl = formData.get("image_url").trim();
+    const imageFile = formData.get("image_file");
+    let imageUrl = null;
+
+    if (imageFile.size > 0) {
+      const allowedTypes = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+      };
+      if (!allowedTypes[imageFile.type]) {
+        showStatus(productStatus, "Escolha uma imagem PNG, JPG ou WebP.", true);
+        return;
+      }
+      if (imageFile.size > 5 * 1024 * 1024) {
+        showStatus(productStatus, "A imagem precisa ter no máximo 5 MB.", true);
+        return;
+      }
+
+      showStatus(productStatus, "Enviando imagem para o Supabase...");
+      const imagePath = `products/${crypto.randomUUID()}.${allowedTypes[imageFile.type]}`;
+      const { error: uploadError } = await supabaseClient.storage
+        .from("product-images")
+        .upload(imagePath, imageFile, { contentType: imageFile.type, upsert: false });
+
+      if (uploadError) {
+        showStatus(productStatus, "Não consegui enviar a imagem. Confira se o armazenamento do Supabase foi configurado.", true);
+        console.error("Erro ao enviar imagem:", uploadError.message);
+        return;
+      }
+
+      ({ data: { publicUrl: imageUrl } } = supabaseClient.storage
+        .from("product-images")
+        .getPublicUrl(imagePath));
+    }
+
     showStatus(productStatus, "Salvando produto...");
 
     const { error } = await supabaseClient.from("products").insert({

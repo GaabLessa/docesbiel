@@ -57,11 +57,12 @@
             </select>
             <label for="product-price">Preço em reais (opcional)</label>
             <input id="product-price" name="price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Ex.: 85,00" />
-            <label for="product-image">URL da imagem (opcional)</label>
-            <input id="product-image" name="image_url" type="url" placeholder="https://..." />
+            <label for="product-image">Imagem do produto (opcional)</label>
+            <input id="product-image" name="image_file" type="file" accept="image/png,image/jpeg,image/webp" />
+            <small class="file-hint">Escolha uma imagem PNG, JPG ou WebP de até 5 MB.</small>
             <button class="button button-primary" type="submit">Salvar produto <span aria-hidden="true">→</span></button>
             <p class="form-status" id="product-status" role="status" aria-live="polite"></p>
-            <p class="admin-help">Nesta etapa, a imagem é informada por URL. O envio de arquivos pelo site será a próxima melhoria.</p>
+            <p class="admin-help">A imagem será enviada ao armazenamento do Supabase. O catálogo usa um endereço público para exibi-la.</p>
           </form>
           <section class="admin-product-list" aria-labelledby="admin-products-title">
             <h2 id="admin-products-title">Produtos cadastrados</h2>
