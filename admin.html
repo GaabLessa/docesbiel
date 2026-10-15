@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#6e3b83" />
+    <title>Área administrativa | Doce Encanto</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <script src="supabase-config.js" defer></script>
+    <script src="admin.js" defer></script>
+  </head>
+  <body class="admin-page">
+    <header class="admin-header">
+      <a class="brand" href="index.html" aria-label="Voltar para Doce Encanto">
+        <span class="brand-mark" aria-hidden="true">d<span>e</span></span>
+        <span class="brand-name">doce encanto<small>CONFEITARIA ARTESANAL</small></span>
+      </a>
+      <a class="text-link" href="index.html">Voltar para a loja <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main class="admin-main">
+      <section class="admin-panel" id="login-view">
+        <p class="eyebrow">ACESSO RESTRITO</p>
+        <h1>Área da <em>administradora.</em></h1>
+        <p class="admin-intro">Entre com a conta autorizada para gerenciar o catálogo da confeitaria.</p>
+        <form id="login-form" class="admin-form">
+          <label for="admin-email">E-mail</label>
+          <input id="admin-email" name="email" type="email" autocomplete="username" required />
+          <label for="admin-password">Senha</label>
+          <input id="admin-password" name="password" type="password" autocomplete="current-password" required />
+          <button class="button button-primary" type="submit">Entrar <span aria-hidden="true">→</span></button>
+          <p class="form-status" id="login-status" role="status" aria-live="polite"></p>
+        </form>
+        <p class="admin-help">A conta é criada pela proprietária no Supabase. Não há cadastro público de administradores.</p>
+      </section>
+
+      <section class="admin-panel admin-dashboard" id="admin-view" hidden>
+        <div class="admin-title-row">
+          <div><p class="eyebrow">CATÁLOGO DA CONFEITARIA</p><h1>Olá, <em>administradora.</em></h1><p class="admin-intro" id="admin-account"></p></div>
+          <button class="button button-outline" id="logout-button" type="button">Sair</button>
+        </div>
+        <div class="admin-content-grid">
+          <form id="product-form" class="admin-form product-entry-form">
+            <h2>Adicionar produto</h2>
+            <label for="product-name">Nome do produto</label>
+            <input id="product-name" name="name" type="text" maxlength="100" required />
+            <label for="product-description">Descrição</label>
+            <textarea id="product-description" name="description" rows="3" maxlength="300"></textarea>
+            <label for="product-category">Categoria</label>
+            <select id="product-category" name="category" required>
+              <option value="bolos">Bolos</option>
+              <option value="doces">Doces</option>
+            </select>
+            <label for="product-price">Preço em reais (opcional)</label>
+            <input id="product-price" name="price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Ex.: 85,00" />
+            <label for="product-image">URL da imagem (opcional)</label>
+            <input id="product-image" name="image_url" type="url" placeholder="https://..." />
+            <button class="button button-primary" type="submit">Salvar produto <span aria-hidden="true">→</span></button>
+            <p class="form-status" id="product-status" role="status" aria-live="polite"></p>
+            <p class="admin-help">Nesta etapa, a imagem é informada por URL. O envio de arquivos pelo site será a próxima melhoria.</p>
+          </form>
+          <section class="admin-product-list" aria-labelledby="admin-products-title">
+            <h2 id="admin-products-title">Produtos cadastrados</h2>
+            <p class="form-status" id="list-status" role="status" aria-live="polite"></p>
+            <ul id="admin-products" class="admin-products"></ul>
+          </section>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
