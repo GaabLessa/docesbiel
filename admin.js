@@ -8,6 +8,7 @@ const listStatus = document.querySelector("#list-status");
 const productList = document.querySelector("#admin-products");
 const requestsList = document.querySelector("#admin-requests");
 const requestsStatus = document.querySelector("#requests-status");
+const requestFilters = document.querySelector(".request-filters");
 const deliveryZoneForm = document.querySelector("#delivery-zone-form");
 const deliveryZoneList = document.querySelector("#delivery-zones");
 const zonesStatus = document.querySelector("#zones-status");
@@ -73,10 +74,12 @@ async function loadAdminProducts() {
 
 const requestStatusLabels = {
   pending: "Aguardando resposta",
-  confirmed: "Confirmado",
+  confirmed: "Em andamento",
   completed: "Concluído",
   cancelled: "Cancelado",
 };
+let adminRequests = [];
+let activeRequestFilter = "all";
 
 async function loadAdminRequests() {
   showStatus(requestsStatus, "Carregando solicitações...");
@@ -91,8 +94,14 @@ async function loadAdminRequests() {
     return;
   }
 
+  adminRequests = data || [];
+  renderAdminRequests();
+}
+
+function renderAdminRequests() {
   requestsList.replaceChildren();
-  data.forEach((request) => {
+  const visibleRequests = adminRequests.filter((request) => activeRequestFilter === "all" || request.status === activeRequestFilter);
+  visibleRequests.forEach((request) => {
     const item = document.createElement("li");
     item.className = "admin-request-card";
     const heading = document.createElement("div");
@@ -150,12 +159,105 @@ async function loadAdminRequests() {
     saveButton.type = "button";
     saveButton.textContent = "Atualizar status";
     saveButton.addEventListener("click", () => updateRequestStatus(request.id, select.value, saveButton));
-    controls.append(select, saveButton);
+    const editButton = document.createElement("button");
+    editButton.className = "button button-outline admin-edit-button";
+    editButton.type = "button";
+    editButton.textContent = "Editar pedido";
+    editButton.addEventListener("click", () => showRequestEditor(request, item));
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "button button-outline admin-delete-button";
+    deleteButton.type = "button";
+    deleteButton.textContent = "Excluir pedido";
+    deleteButton.addEventListener("click", () => deleteRequest(request, deleteButton));
+    controls.append(select, saveButton, editButton, deleteButton);
     item.append(controls);
     requestsList.append(item);
   });
 
-  showStatus(requestsStatus, data.length ? `${data.length} solicitação(ões).` : "Nenhuma solicitação recebida ainda.");
+  const count = visibleRequests.length;
+  showStatus(requestsStatus, count ? `${count} pedido(s) nesta visualização · ${adminRequests.length} no total.` : (adminRequests.length ? "Nenhum pedido com este status." : "Nenhuma solicitação recebida ainda."));
+}
+
+function showRequestEditor(request, card) {
+  if (card.querySelector(".request-edit-form")) return;
+  const form = document.createElement("form");
+  form.className = "request-edit-form";
+  form.innerHTML = `<h3>Editar dados do pedido</h3>
+    <label>Nome do cliente<input name="customer_name" maxlength="100" required></label>
+    <label>Telefone<input name="customer_phone" maxlength="30" required></label>
+    <label>E-mail<input name="customer_email" type="email" maxlength="254"></label>
+    <label>Produto<input name="product_name" maxlength="100" required></label>
+    <label>Quantidade<input name="quantity" type="number" min="1" max="100" required></label>
+    <label>Data desejada<input name="preferred_date" type="date" required></label>
+    <label>Horário desejado<input name="preferred_time" type="time"></label>
+    <label>Entrega<select name="delivery_method"><option value="pickup">Retirada no local</option><option value="delivery">Delivery</option></select></label>
+    <label>CEP<input name="delivery_postal_code" maxlength="9"></label>
+    <label>Cidade<input name="delivery_city" maxlength="100"></label>
+    <label>Bairro<input name="delivery_neighborhood" maxlength="100"></label>
+    <label>Rua / endereço<input name="delivery_address" maxlength="200"></label>
+    <label>Número<input name="delivery_number" maxlength="30"></label>
+    <label>Complemento<input name="delivery_complement" maxlength="100"></label>
+    <label class="request-edit-wide">Observações<textarea name="notes" maxlength="1000" rows="3"></textarea></label>
+    <div class="request-edit-actions"><button class="button button-primary" type="submit">Salvar edição</button><button class="button button-outline" type="button" data-cancel-edit>Cancelar</button></div>
+    <p class="form-status" role="status" aria-live="polite"></p>`;
+  const fields = form.elements;
+  ["customer_name", "customer_phone", "customer_email", "product_name", "quantity", "preferred_date", "preferred_time", "delivery_method", "delivery_postal_code", "delivery_city", "delivery_neighborhood", "delivery_address", "delivery_number", "delivery_complement", "notes"].forEach((name) => {
+    fields[name].value = request[name] ?? "";
+  });
+  form.addEventListener("submit", (event) => saveRequestEdits(event, request, form));
+  form.querySelector("[data-cancel-edit]").addEventListener("click", () => form.remove());
+  card.append(form);
+  form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+async function saveRequestEdits(event, request, form) {
+  event.preventDefault();
+  const values = new FormData(form);
+  const deliveryMethod = values.get("delivery_method");
+  const payload = {
+    customer_name: values.get("customer_name").trim(),
+    customer_phone: values.get("customer_phone").trim(),
+    customer_email: values.get("customer_email").trim() || null,
+    product_name: values.get("product_name").trim(),
+    quantity: Number(values.get("quantity")),
+    preferred_date: values.get("preferred_date"),
+    preferred_time: values.get("preferred_time") || null,
+    delivery_method: deliveryMethod,
+    delivery_postal_code: deliveryMethod === "delivery" ? values.get("delivery_postal_code").replace(/\D/g, "") : null,
+    delivery_city: deliveryMethod === "delivery" ? values.get("delivery_city").trim() : null,
+    delivery_neighborhood: deliveryMethod === "delivery" ? values.get("delivery_neighborhood").trim() : null,
+    delivery_address: deliveryMethod === "delivery" ? values.get("delivery_address").trim() : null,
+    delivery_number: deliveryMethod === "delivery" ? values.get("delivery_number").trim() : null,
+    delivery_complement: deliveryMethod === "delivery" ? values.get("delivery_complement").trim() || null : null,
+    notes: values.get("notes").trim() || null,
+  };
+  const status = form.querySelector(".form-status");
+  const button = form.querySelector('[type="submit"]');
+  button.disabled = true;
+  showStatus(status, "Salvando alterações...");
+  const { error } = await supabaseClient.from("order_requests").update(payload).eq("id", request.id);
+  button.disabled = false;
+  if (error) {
+    showStatus(status, "Não consegui salvar. Confira os campos e a permissão do banco.", true);
+    console.error("Erro ao editar pedido:", error.message);
+    return;
+  }
+  showStatus(requestsStatus, "Pedido atualizado.");
+  await loadAdminRequests();
+}
+
+async function deleteRequest(request, button) {
+  if (!window.confirm(`Excluir o pedido de ${request.customer_name}? Essa ação não pode ser desfeita.`)) return;
+  button.disabled = true;
+  const { error } = await supabaseClient.from("order_requests").delete().eq("id", request.id);
+  if (error) {
+    button.disabled = false;
+    showStatus(requestsStatus, "Não consegui excluir o pedido. Confira a permissão do administrador.", true);
+    console.error("Erro ao excluir pedido:", error.message);
+    return;
+  }
+  await loadAdminRequests();
+  showStatus(requestsStatus, "Pedido excluído.");
 }
 
 let adminDeliveryZones = [];
@@ -447,6 +549,17 @@ if (!supabaseClient) {
 
   cancelEditButton.addEventListener("click", stopEditingProduct);
   deliveryZoneForm.addEventListener("submit", saveDeliveryZone);
+  requestFilters.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-request-filter]");
+    if (!button) return;
+    activeRequestFilter = button.dataset.requestFilter;
+    requestFilters.querySelectorAll("[data-request-filter]").forEach((filterButton) => {
+      const isActive = filterButton === button;
+      filterButton.classList.toggle("is-active", isActive);
+      filterButton.setAttribute("aria-pressed", String(isActive));
+    });
+    renderAdminRequests();
+  });
 
   document.querySelector("#logout-button").addEventListener("click", async () => {
     await supabaseClient.auth.signOut();

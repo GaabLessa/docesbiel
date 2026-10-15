@@ -130,20 +130,10 @@ end;
 $$;
 
 revoke all on function public.set_order_delivery_fee() from public, anon, authenticated;
-do $$
-begin
-  if not exists (
-    select 1 from pg_trigger
-    where tgname = 'set_order_delivery_fee_trigger'
-      and tgrelid = 'public.order_requests'::regclass
-      and not tgisinternal
-  ) then
-    create trigger set_order_delivery_fee_trigger
-      before insert on public.order_requests
-      for each row execute function public.set_order_delivery_fee();
-  end if;
-end
-$$;
+drop trigger if exists set_order_delivery_fee_trigger on public.order_requests;
+create trigger set_order_delivery_fee_trigger
+  before insert or update of delivery_method, delivery_postal_code on public.order_requests
+  for each row execute function public.set_order_delivery_fee();
 
 alter table public.order_requests enable row level security;
 revoke all on table public.order_requests from public, anon, authenticated;
@@ -156,6 +146,13 @@ grant insert (
 ) on public.order_requests to anon, authenticated;
 grant select on public.order_requests to authenticated;
 grant update (status) on public.order_requests to authenticated;
+grant update (
+  customer_name, customer_phone, customer_email, product_name, quantity,
+  preferred_date, preferred_time, delivery_method, delivery_postal_code,
+  delivery_city, delivery_neighborhood, delivery_address, delivery_number,
+  delivery_complement, notes
+) on public.order_requests to authenticated;
+grant delete on public.order_requests to authenticated;
 
 do $$
 begin
@@ -174,6 +171,11 @@ begin
       on public.order_requests for update to authenticated
       using ((select public.is_admin()))
       with check ((select public.is_admin()));
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'order_requests' and policyname = 'Admins can delete order requests') then
+    create policy "Admins can delete order requests"
+      on public.order_requests for delete to authenticated
+      using ((select public.is_admin()));
   end if;
 end
 $$;

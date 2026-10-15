@@ -80,6 +80,13 @@
         <section class="admin-requests" aria-labelledby="admin-requests-title">
           <h2 id="admin-requests-title">Solicitações de encomenda</h2>
           <p class="admin-help">A data é uma preferência do cliente. Combine a disponibilidade diretamente com ele antes de confirmar.</p>
+          <div class="request-filters" role="group" aria-label="Filtrar pedidos por status">
+            <button class="button button-outline is-active" type="button" data-request-filter="all" aria-pressed="true">Todos</button>
+            <button class="button button-outline" type="button" data-request-filter="pending" aria-pressed="false">Aguardando resposta</button>
+            <button class="button button-outline" type="button" data-request-filter="confirmed" aria-pressed="false">Em andamento</button>
+            <button class="button button-outline" type="button" data-request-filter="completed" aria-pressed="false">Concluídos</button>
+            <button class="button button-outline" type="button" data-request-filter="cancelled" aria-pressed="false">Cancelados</button>
+          </div>
           <p class="form-status" id="requests-status" role="status" aria-live="polite"></p>
           <ul id="admin-requests" class="admin-requests-list"></ul>
         </section>
