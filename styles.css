@@ -65,3 +65,4 @@ h1 em,h2 em { color: #c97999; font-weight: 500; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *,*::before,*::after { transition-duration: .01ms !important; } }
 .file-hint { color: var(--muted); font-size: 10px; line-height: 1.5; }
 .admin-product-text { display: flex; flex-direction: column; gap: 5px; min-width: 0; }.admin-edit-button { min-height: 34px; padding: 0 12px; font: 600 10px var(--sans); cursor: pointer; }.admin-products li > div span { text-align: left; }
+.admin-product-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }.admin-delete-button { min-height: 34px; padding: 0 12px; border-color: #e7cbd5; color: #a33b5b; font: 600 10px var(--sans); cursor: pointer; }.admin-delete-button:disabled { opacity: .55; cursor: wait; }

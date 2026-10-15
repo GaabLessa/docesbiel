@@ -50,11 +50,59 @@ async function loadAdminProducts() {
     editButton.textContent = "Editar";
     editButton.setAttribute("aria-label", `Editar ${product.name}`);
     editButton.addEventListener("click", () => startEditingProduct(product));
-    item.append(textGroup, editButton);
+    const actions = document.createElement("div");
+    actions.className = "admin-product-actions";
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "button button-outline admin-delete-button";
+    deleteButton.type = "button";
+    deleteButton.textContent = "Excluir";
+    deleteButton.setAttribute("aria-label", `Excluir ${product.name}`);
+    deleteButton.addEventListener("click", () => deleteProduct(product, deleteButton));
+    actions.append(editButton, deleteButton);
+    item.append(textGroup, actions);
     productList.append(item);
   });
 
   showStatus(listStatus, data.length ? `${data.length} produtos no catálogo.` : "Nenhum produto cadastrado ainda.");
+}
+
+async function deleteProduct(product, button) {
+  const confirmed = window.confirm(`Tem certeza de que deseja excluir “${product.name}”? Essa ação não pode ser desfeita.`);
+  if (!confirmed) return;
+
+  button.disabled = true;
+  showStatus(listStatus, `Excluindo ${product.name}...`);
+  const { error } = await supabaseClient.from("products").delete().eq("id", product.id);
+
+  if (error) {
+    button.disabled = false;
+    showStatus(listStatus, "Não foi possível excluir o produto. Confira as permissões do administrador.", true);
+    console.error("Erro ao excluir produto:", error.message);
+    return;
+  }
+
+  let imageCleanupFailed = false;
+  if (product.image_url) {
+    try {
+      const imagePath = new URL(product.image_url).pathname.split("/storage/v1/object/public/product-images/")[1];
+      if (imagePath) {
+        const { error: imageError } = await supabaseClient.storage.from("product-images").remove([decodeURIComponent(imagePath)]);
+        imageCleanupFailed = Boolean(imageError);
+        if (imageError) console.error("Produto excluído; não consegui remover sua imagem:", imageError.message);
+      }
+    } catch (error) {
+      imageCleanupFailed = true;
+      console.error("Produto excluído; não consegui identificar a imagem para removê-la:", error);
+    }
+  }
+
+  if (editingProduct?.id === product.id) stopEditingProduct();
+  await loadAdminProducts();
+  if (imageCleanupFailed) {
+    showStatus(listStatus, "Produto excluído. A imagem ficou no armazenamento e pode ser removida depois.", true);
+  } else {
+    showStatus(listStatus, "Produto excluído.");
+  }
 }
 
 function startEditingProduct(product) {
